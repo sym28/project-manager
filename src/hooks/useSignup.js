@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react"
 import {useAuthContext} from './useAuthContext'
 import {getAuth, createUserWithEmailAndPassword, updateProfile} from 'firebase/auth'
+import {getDownloadURL, ref, uploadBytesResumable} from 'firebase/storage'
+import {setDoc, doc} from 'firebase/firestore'
+import {storage, db} from '../firebase/config'
 
 export const useSignup = () => {
     const [isCancelled, setIsCancelled] = useState(false)
@@ -9,7 +12,7 @@ export const useSignup = () => {
     const {dispatch} = useAuthContext()
     
 
-    const signup = async (email, password, displayName) => {
+    const signup = async (email, password, displayName, thumbnail) => {
         setError(null)
         setIsPending(true)
 
@@ -23,11 +26,41 @@ export const useSignup = () => {
                 throw new Error('Could not complete signup')
             }
 
-            // add display name to user
-            await updateProfile(res.user, {displayName})
+            // handle user thumbnail
+            const uploadPath = `/thumbnails/${res.user.uid}/${thumbnail.name}`
+            const storageRef = ref(storage, uploadPath)
+            const uploadTask = uploadBytesResumable(storageRef, thumbnail)
 
-            // run dispatch login action
-            dispatch({type: 'LOGIN', payload: res.user})
+            // listen for state changes
+            uploadTask.on('state_changed',
+                (snapshot) => {
+                    // task progress
+                    const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100)
+                    console.log('Upload progress: ' + progress + '%')
+                },
+                (error) => {
+                    // error handling
+                    console.log(error)
+                },
+                async () => {
+                    // upload success
+                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+                    console.log('file available at: ', downloadURL)
+
+                    // add display name + image to user
+                    await updateProfile(res.user, {displayName, photoURL: downloadURL})
+
+                    // add user document
+                    await setDoc(doc(db, 'users', res.user.uid), {
+                        online: true,
+                        displayName,
+                        photoURL: downloadURL
+                    })
+                    // run dispatch login action
+                    dispatch({type: 'LOGIN', payload: res.user})
+                }
+            )
+
             
             // update state
             if(!isCancelled) {

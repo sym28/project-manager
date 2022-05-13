@@ -1,12 +1,18 @@
-import { useState } from 'react'
+// syles
 import './Signup.css'
+
+import { useState } from 'react'
+import { useSignup } from '../../hooks/useSignup'
+
 
 export default function Signup() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [username, setUsername] = useState('')
+  const [displayName, setdisplayName] = useState('')
   const [image, setImage] = useState(undefined)
   const [thumbnailError, setThumbnailError] = useState(null)
+  const {signup, isPending, error} = useSignup()
+  
 
   const handleFile = (e) => {
     const file = e.target.files[0]
@@ -28,10 +34,9 @@ export default function Signup() {
     setImage(file)
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    const data = {email, password, username, image}
-    console.log(data)
+    await signup(email, password, displayName, image)
   }
 
   return (
@@ -47,15 +52,17 @@ export default function Signup() {
           <input required type='password' value={password} onChange={e => setPassword(e.target.value)} />
         </label>
         <label>
-          <span>Username</span>
-          <input required type='text' value={username} onChange={e => setUsername(e.target.value)} />
+          <span>displayName</span>
+          <input required type='text' value={displayName} onChange={e => setdisplayName(e.target.value)} />
         </label>
         <label>
           <span>Image File</span>
           <input required type='file' onChange={handleFile}/>
           {thumbnailError ? <div className='error'>{thumbnailError}</div> : null}
         </label>
-        <button className='btn'>Sign up</button>
+        {!isPending ? <button className='btn'>Sign up</button>
+        : <button className='btn' disabled>Loading</button>}
+        {error ? <div className='error'>{error}</div> : null}
       </form>
     </>
   )
